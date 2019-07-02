@@ -306,14 +306,17 @@ private:
     std::vector<std::vector<OptionItem>::size_type> indices;
 #if __cplusplus >= 201103L || defined(_MSC_VER) && _MSC_VER >= 1700
     for (const auto& kv : longOptMap) {
-#else
-    for (std::map<std::string, std::vector<OptionItem>::size_type>::const_iterator itr = longOptMap.begin(); itr != longOptMap.end(); ++itr) {
-      const std::pair < std::string, std::vector<OptionItem>& kv = *itr;
-#endif  //  __cplusplus >= 201103L || defined(_MSC_VER) && _MSC_VER >= 1700
       if (kv.first.find(longOptName) == 0) {
         indices.push_back(kv.second);
       }
     }
+#else
+    for (std::map<std::string, std::vector<OptionItem>::size_type>::const_iterator itr = longOptMap.begin(); itr != longOptMap.end(); ++itr) {
+      if (itr->first.find(longOptName) == 0) {
+        indices.push_back(itr->second);
+      }
+    }
+#endif  //  __cplusplus >= 201103L || defined(_MSC_VER) && _MSC_VER >= 1700
 
     if (indices.size() == 0) {
       throw std::runtime_error("Unknown option: --" + longOptName);
