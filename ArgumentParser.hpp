@@ -29,9 +29,22 @@
 #  define ARGUMENT_PARSER_NOEXCEPT throw()
 #endif
 
+#if defined(NDEBUG) && !defined(_DEBUG)
+#  ifdef _MSC_VER
+#    define ARGUMENT_PARSER_ASSUME(x)  __assume(x)
+#  else
+#    define ARGUMENT_PARSER_ASSUME(x)
+#  endif  // _MSC_VER
+#elif defined(assert)
+#  define ARGUMENT_PARSER_ASSUME(x)  assert(x)
+#else
+#  define ARGUMENT_PARSER_ASSUME(x)
+#endif  // defined(NDEBUG) && !defined(_DEBUG)
+
 #if __cplusplus >= 201103L || defined(_MSC_VER) && _MSC_VER >= 1600
 #  define ARGUMENT_PARSER_EMPLACE_AVAILABLE
 #endif
+
 
 /*!
  * @class ArgumentParser
@@ -346,7 +359,7 @@ private:
           return idx;
         }
       default:
-        assert(0);
+        ARGUMENT_PARSER_ASSUME(0);
         return static_cast<std::vector<std::string>::size_type>(-1);
     }
   }
@@ -388,7 +401,7 @@ private:
         os << "=" << item.metavar;
         break;
       default:
-        assert(0);
+        ARGUMENT_PARSER_ASSUME(0);
     }
   }
 
@@ -861,6 +874,7 @@ public:
 
 
 #undef ARGUMENT_PARSER_NOEXCEPT
+#undef ARGUMENT_PARSER_ASSUME
 #ifdef ARGUMENT_PARSER_EMPLACE_AVAILABLE
 #  undef ARGUMENT_PARSER_EMPLACE_AVAILABLE
 #endif  // ARGUMENT_PARSER_EMPLACE_AVAILABLE
