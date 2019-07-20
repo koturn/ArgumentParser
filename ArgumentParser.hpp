@@ -19,8 +19,13 @@
 #else
 #  include <map>
 #endif  // __cplusplus >= 201103L
+#if __cplusplus >= 201703L
+#  include <string_view>
+#endif  // __cplusplus >= 201703L
+
 
 #if defined(__cplusplus) && __cplusplus >= 201103 \
+  || defined(_MSVC_LANG) && _MSVC_LANG >= 201103L \
   || defined(_MSC_VER) && (_MSC_VER > 1800 || (_MSC_VER == 1800 && _MSC_FULL_VER == 180021114))
 //! Polyfill macro of @code noexcept @endcode
 #  define ARGUMENT_PARSER_NOEXCEPT noexcept
@@ -41,7 +46,9 @@
 #  define ARGUMENT_PARSER_ASSUME(x)
 #endif  // defined(NDEBUG) && !defined(_DEBUG)
 
-#if __cplusplus >= 201103L || defined(_MSC_VER) && _MSC_VER >= 1600
+#if __cplusplus >= 201103L \
+  || defined(_MSVC_LANG) && _MSVC_LANG >= 201103L \
+  || defined(_MSC_VER) && _MSC_VER >= 1600
 #  define ARGUMENT_PARSER_EMPLACE_AVAILABLE
 #endif
 
@@ -53,7 +60,9 @@
 class ArgumentParser
 {
 public:
-#if __cplusplus >= 201103L || defined(_MSC_VER) && _MSC_VER >= 1700
+#if __cplusplus >= 201103L \
+  || defined(_MSVC_LANG) && _MSVC_LANG >= 201103L \
+  || defined(_MSC_VER) && _MSC_VER >= 1700
   /*!
    * @enum OptionType
    * @brief Option type which indicates whether option has an argument or not
@@ -119,7 +128,7 @@ public:
     //! Actual enum value
     OptionTypeEnum value;
   };  // class OptionType
-#endif  // __cplusplus >= 201103L
+#endif
 
 private:
   /*!
@@ -174,6 +183,30 @@ private:
     }
   };
 
+
+#if __cplusplus >= 201703L || defined(_MSVC_LANG) && _MSVC_LANG >= 201703L
+  template<typename T>
+  struct is_stl_string
+    : std::is_same<std::remove_cv_t<std::remove_reference_t<T>>, std::string>
+  {};  // struct is_stl_string
+
+  template<typename T>
+  struct is_stl_string_view
+    : std::is_same<std::remove_cv_t<std::remove_reference_t<T>>, std::string_view>
+  {};  // struct is_stl_string_view
+
+  template<typename T>
+  struct is_stl_string_type
+    : std::disjunction<is_stl_string<T>, is_stl_string_view<T>>
+  {};  // struct is_stl_string_type
+#elif __cplusplus >= 201402L || defined(_MSVC_LANG) && _MSVC_LANG >= 201402L
+  template<typename T>
+  struct is_stl_string_type
+    : std::is_same<std::remove_cv_t<std::remove_reference_t<T>>, std::string>
+  {};  // struct is_stl_string_type
+#endif  // __cplusplus >= 201703L || defined(_MSVC_LANG) && _MSVC_LANG >= 201703L
+
+
   //! Name of a program
   std::string progName;
   //! Indent string used in @code ArgumentParser::showUsage() @endcode
@@ -184,7 +217,8 @@ private:
   std::vector<std::string> arguments;
   //! Options
   std::vector<OptionItem> options;
-#if __cplusplus >= 201103L || defined(_MSC_VER) && _MSC_VER >= 1600
+#if __cplusplus >= 201103L || defined(_MSVC_LANG) && _MSVC_LANG >= 201103L \
+  || defined(_MSC_VER) && _MSC_VER >= 1600
   //! Map which associates a short option name with an option attribute
   std::unordered_map<int, std::vector<OptionItem>::size_type> shortOptMap;
   //! Map which associates a long option name with an option attribute
@@ -232,6 +266,24 @@ private:
     return value;
   }
 
+#if __cplusplus >= 201703L || defined(_MSVC_LANG) && _MSVC_LANG >= 201703L
+  /*!
+   * @brief Convert C-string array to std::vector of std::string
+   * @param [in] argc  Number of command-line arguments
+   * @param [in] argv  Command-line arguments
+   * @return std::vector of command-line arguments
+   */
+  static std::vector<std::string_view>
+  cmdargsToStringViewVector(int argc, const char* argv[]) ARGUMENT_PARSER_NOEXCEPT
+  {
+    std::vector<std::string_view> args;
+    args.reserve(argc - 1);
+    for (int i = 1; i < argc; i++) {
+      args.emplace_back(argv[i]);
+    }
+    return args;
+  }
+#else
   /*!
    * @brief Convert C-string array to std::vector of std::string
    * @param [in] argc  Number of command-line arguments
@@ -239,18 +291,20 @@ private:
    * @return std::vector of command-line arguments
    */
   static std::vector<std::string>
-  cmdargsToVector(int argc, const char* argv[]) ARGUMENT_PARSER_NOEXCEPT
+  cmdargsToStringVector(int argc, const char* argv[]) ARGUMENT_PARSER_NOEXCEPT
   {
     std::vector<std::string> args;
+    args.reserve(argc - 1);
     for (int i = 1; i < argc; i++) {
-#ifdef ARGUMENT_PARSER_EMPLACE_AVAILABLE
+#  ifdef ARGUMENT_PARSER_EMPLACE_AVAILABLE
       args.emplace_back(argv[i]);
-#else
+#  else
       args.push_back(argv[i]);
-#endif  // ARGUMENT_PARSER_EMPLACE_AVAILABLE
+#  endif  // ARGUMENT_PARSER_EMPLACE_AVAILABLE
     }
     return args;
   }
+#endif  // __cplusplus >= 201703L || defined(_MSVC_LANG) && _MSVC_LANG >= 201703L
 
   /*!
    * @brief Split string at the first index of ch in the string
@@ -260,10 +314,16 @@ private:
    * @param [out] second  Second string of splitted string
    * @return Index of @code ch @endcode
    */
-  static std::string::size_type
-  splitFirstPos(const std::string& str, char ch, std::string& first, std::string& second) ARGUMENT_PARSER_NOEXCEPT
+  template<typename T>
+  static typename T::size_type
+  splitFirstPos(const T& str, char ch, std::string& first, std::string& second) ARGUMENT_PARSER_NOEXCEPT
   {
-    std::string::size_type pos = str.find(ch);
+#if __cplusplus >= 201103L || defined(_MSVC_LANG) && _MSVC_LANG >= 201103L
+    static_assert(
+      is_stl_string_type<T>::value,
+      "[ArgumentParser::splitFirstPos] T must be std::string or std::string_view (C++17 or later).");
+#endif  // __cplusplus >= 201103L || defined(_MSVC_LANG) && _MSVC_LANG >= 201103L
+    typename T::size_type pos = str.find(ch);
     if (pos != std::string::npos) {
       first = str.substr(0, pos);
       second = str.substr(pos + 1);
@@ -279,11 +339,17 @@ private:
    * @param [in] idx   Current parsing index of command-line arguments
    * @return Index after parsing is complete
    */
+  template<typename T>
   std::vector<std::string>::size_type
-  parseShortOption(const std::vector<std::string>& args, std::vector<std::string>::size_type idx)
+  parseShortOption(const std::vector<T>& args, std::vector<std::string>::size_type idx)
   {
-    const std::string& optBody = args[idx];
-    for (std::string::size_type i = 1; i < optBody.length(); i++) {
+#if __cplusplus >= 201103L || defined(_MSVC_LANG) && _MSVC_LANG >= 201103L
+    static_assert(
+      is_stl_string_type<T>::value,
+      "[ArgumentParser::parseShortOption] T must be std::string or std::string_view (C++17 or later).");
+#endif  // __cplusplus >= 201103L || defined(_MSVC_LANG) && _MSVC_LANG >= 201103L
+    const T& optBody = args[idx];
+    for (typename T::size_type i = 1; i < optBody.length(); i++) {
       int shortName = optBody[i];
       if (shortOptMap.find(shortName) == shortOptMap.end()) {
         throw std::runtime_error("Unknown option: -" + std::string(1, static_cast<char>(shortName)));
@@ -311,11 +377,17 @@ private:
    * @param [in] idx   Current parsing index of command-line arguments
    * @return Index after parsing is complete
    */
+  template<typename T>
   std::vector<std::string>::size_type
-  parseLongOption(const std::vector<std::string>& args, std::vector<std::string>::size_type idx)
+  parseLongOption(const std::vector<T>& args, std::vector<std::string>::size_type idx)
   {
+#if __cplusplus >= 201103L || defined(_MSVC_LANG) && _MSVC_LANG >= 201103L
+    static_assert(
+      is_stl_string_type<T>::value,
+      "[ArgumentParser::parseShortOption] T must be std::string or std::string_view (C++17 or later).");
+#endif  // __cplusplus >= 201103L || defined(_MSVC_LANG) && _MSVC_LANG >= 201103L
     std::string longOptName, value;
-    std::string::size_type pos = splitFirstPos(args[idx].substr(2), '=', longOptName, value);
+    typename T::size_type pos = splitFirstPos(args[idx].substr(2), '=', longOptName, value);
     std::vector<std::vector<OptionItem>::size_type> indices;
 #if __cplusplus >= 201103L || defined(_MSC_VER) && _MSC_VER >= 1700
     for (const auto& kv : longOptMap) {
@@ -591,16 +663,21 @@ public:
   /*!
    * @brief Parse command-line arguments
    * @param [in] argc  The number of command-line arguments
-   * @param [in] argv  Command-line arguments
-   */
+   * @param [in] argv  Command-line arguments */
   void
   parse(
     int argc,
     const char* argv[])
   {
     progName = argv[0];
-    std::vector<std::string> args = cmdargsToVector(argc, argv);
-    for (std::vector<std::string>::size_type i = 0; i < args.size(); i++) {
+#if __cplusplus >= 201703L || defined(_MSVC_LANG) && _MSVC_LANG >= 201703L
+    std::vector<std::string_view> args = cmdargsToStringViewVector(argc, argv);
+    typedef std::vector<std::string_view>::size_type args_size_type;
+#else
+    std::vector<std::string> args = cmdargsToStringVector(argc, argv);
+    typedef std::vector<std::string>::size_type args_size_type;
+#endif  // __cplusplus >= 201703L || defined(_MSVC_LANG) && _MSVC_LANG >= 201703L
+    for (args_size_type i = 0; i < args.size(); i++) {
       if (args[i].find("--") == 0) {
         if (args[i].length() == 2) {
           for (i++; i < args.size(); i++) {
@@ -686,7 +763,9 @@ public:
     return fromString<T>(get(longOptName));
   }
 
-#if __cplusplus >= 201103L || defined(_MSC_VER) && _MSC_VER >= 1600
+#if __cplusplus >= 201103L \
+  || defined(_MSVC_LANG) && _MSVC_LANG >= 201103L \
+  || defined(_MSC_VER) && _MSC_VER >= 1600
   /*!
    * @brief Get option value converted to desired type
    * @tparam F  Functional object
@@ -816,7 +895,9 @@ public:
     os << "[Usage]\n"
        << progName << " [Options ...] [Arguments ...]\n\n"
        << "[Options]\n";
-#if __cplusplus >= 201103L || defined(_MSC_VER) && _MSC_VER >= 1700
+#if __cplusplus >= 201103L \
+    || defined(_MSVC_LANG) && _MSVC_LANG >= 201103L \
+    || defined(_MSC_VER) && _MSC_VER >= 1700
     for (const auto& item : options) {
 #else
     for (std::vector<OptionItem>::const_iterator itr = options.begin(); itr != options.end(); ++itr) {
