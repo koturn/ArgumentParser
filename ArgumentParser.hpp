@@ -19,8 +19,10 @@
 #else
 #  include <map>
 #endif  // __cplusplus >= 201103L
-#if __cplusplus >= 201703L
+#if __cplusplus >= 201703L \
+  || defined(_MSVC_LANG) && _MSVC_LANG >= 201703L
 #  include <string_view>
+#  define ARGUMENT_PARSER_HAS_STRING_VIEW 1
 #endif  // __cplusplus >= 201703L
 
 
@@ -184,27 +186,43 @@ private:
   };
 
 
-#if __cplusplus >= 201703L || defined(_MSVC_LANG) && _MSVC_LANG >= 201703L
-  template<typename T>
+#if defined(ARGUMENT_PARSER_HAS_STRING_VIEW)
+  /*!
+   * @brief A meta function that identify whether T is @code std::string @endcode.
+   * @tparam T  Target type parameter
+   */
+  template <typename T>
   struct is_stl_string
     : std::is_same<std::remove_cv_t<std::remove_reference_t<T>>, std::string>
   {};  // struct is_stl_string
 
-  template<typename T>
+  /*!
+   * @brief A meta function that identify whether T is @code std::string_view @endcode.
+   * @tparam T  Target type parameter
+   */
+  template <typename T>
   struct is_stl_string_view
     : std::is_same<std::remove_cv_t<std::remove_reference_t<T>>, std::string_view>
   {};  // struct is_stl_string_view
 
-  template<typename T>
+  /*!
+   * @brief A meta function that identify whether T is @code std::string @endcode or @code std::string_view @endcode.
+   * @tparam T  Target type parameter
+   */
+  template <typename T>
   struct is_stl_string_type
     : std::disjunction<is_stl_string<T>, is_stl_string_view<T>>
   {};  // struct is_stl_string_type
-#elif __cplusplus >= 201402L || defined(_MSVC_LANG) && _MSVC_LANG >= 201402L
-  template<typename T>
+#elif __cplusplus >= 201103L || defined(_MSVC_LANG) && _MSVC_LANG >= 201103L
+  /*!
+   * @brief A meta function that identify whether T is @code std::string_view @endcode.
+   * @tparam T  Target type parameter
+   */
+  template <typename T>
   struct is_stl_string_type
-    : std::is_same<std::remove_cv_t<std::remove_reference_t<T>>, std::string>
+    : std::is_same<typename std::remove_cv<typename std::remove_reference<T>::type>::type, std::string>
   {};  // struct is_stl_string_type
-#endif  // __cplusplus >= 201703L || defined(_MSVC_LANG) && _MSVC_LANG >= 201703L
+#endif  // defined(ARGUMENT_PARSER_HAS_STRING_VIEW)
 
 
   //! Name of a program
@@ -266,7 +284,7 @@ private:
     return value;
   }
 
-#if __cplusplus >= 201703L || defined(_MSVC_LANG) && _MSVC_LANG >= 201703L
+#ifdef ARGUMENT_PARSER_HAS_STRING_VIEW
   /*!
    * @brief Convert C-string array to std::vector of std::string
    * @param [in] argc  Number of command-line arguments
@@ -304,17 +322,18 @@ private:
     }
     return args;
   }
-#endif  // __cplusplus >= 201703L || defined(_MSVC_LANG) && _MSVC_LANG >= 201703L
+#endif  // ARGUMENT_PARSER_HAS_STRING_VIEW
 
   /*!
    * @brief Split string at the first index of ch in the string
+   * @tparam T  @code std::string @endcode or @code std::string_view @endcode
    * @param [in]  str     Target string
    * @param [in]  ch      Separator character
    * @param [out] first   First string of splitted string
    * @param [out] second  Second string of splitted string
    * @return Index of @code ch @endcode
    */
-  template<typename T>
+  template <typename T>
   static typename T::size_type
   splitFirstPos(const T& str, char ch, std::string& first, std::string& second) ARGUMENT_PARSER_NOEXCEPT
   {
@@ -335,11 +354,12 @@ private:
 
   /*!
    * @brief Parse one short option
+   * @tparam T  @code std::string @endcode or @code std::string_view @endcode
    * @param [in] args  Argument vector
    * @param [in] idx   Current parsing index of command-line arguments
    * @return Index after parsing is complete
    */
-  template<typename T>
+  template <typename T>
   std::vector<std::string>::size_type
   parseShortOption(const std::vector<T>& args, std::vector<std::string>::size_type idx)
   {
@@ -373,11 +393,12 @@ private:
 
   /*!
    * @brief Parse one long option
+   * @tparam T  @code std::string @endcode or @code std::string_view @endcode
    * @param [in] args  Argument vector
    * @param [in] idx   Current parsing index of command-line arguments
    * @return Index after parsing is complete
    */
-  template<typename T>
+  template <typename T>
   std::vector<std::string>::size_type
   parseLongOption(const std::vector<T>& args, std::vector<std::string>::size_type idx)
   {
@@ -670,13 +691,13 @@ public:
     const char* argv[])
   {
     progName = argv[0];
-#if __cplusplus >= 201703L || defined(_MSVC_LANG) && _MSVC_LANG >= 201703L
+#ifdef ARGUMENT_PARSER_HAS_STRING_VIEW
     std::vector<std::string_view> args = cmdargsToStringViewVector(argc, argv);
     typedef std::vector<std::string_view>::size_type args_size_type;
 #else
     std::vector<std::string> args = cmdargsToStringVector(argc, argv);
     typedef std::vector<std::string>::size_type args_size_type;
-#endif  // __cplusplus >= 201703L || defined(_MSVC_LANG) && _MSVC_LANG >= 201703L
+#endif  // ARGUMENT_PARSER_HAS_STRING_VIEW
     for (args_size_type i = 0; i < args.size(); i++) {
       if (args[i].find("--") == 0) {
         if (args[i].length() == 2) {
@@ -779,6 +800,9 @@ public:
     int shortOptName,
     const F& converter) -> decltype(converter(get(shortOptName)))
   {
+    static_assert(
+      std::is_constructible<std::function<decltype(converter(get(shortOptName)))(const std::string&)>, F>::value,
+      "[ArgumentParser::get] Converter function signature must be T(std::string) or T([const] std::string&).");
     return converter(get(shortOptName));
   }
 
@@ -795,6 +819,9 @@ public:
     const std::string& longOptName,
     const F& converter) -> decltype(converter(get(longOptName)))
   {
+    static_assert(
+      std::is_constructible<std::function<decltype(converter(get(longOptName)))(const std::string&)>, F>::value,
+      "[ArgumentParser::get] Converter function signature must be T(std::string) or T([const] std::string&).");
     return converter(get(longOptName));
   }
 #else
@@ -956,6 +983,9 @@ public:
 
 #undef ARGUMENT_PARSER_NOEXCEPT
 #undef ARGUMENT_PARSER_ASSUME
+#ifdef ARGUMENT_PARSER_HAS_STRING_VIEW
+#  undef ARGUMENT_PARSER_HAS_STRING_VIEW
+#endif  // ARGUMENT_PARSER_HAS_STRING_VIEW
 #ifdef ARGUMENT_PARSER_EMPLACE_AVAILABLE
 #  undef ARGUMENT_PARSER_EMPLACE_AVAILABLE
 #endif  // ARGUMENT_PARSER_EMPLACE_AVAILABLE
