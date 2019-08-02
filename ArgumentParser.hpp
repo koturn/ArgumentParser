@@ -13,7 +13,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#if __cplusplus >= 201103L
+#if __cplusplus >= 201103L \
+  || defined(_MSC_VER) && _MSC_VER >= 1800
 #  include <type_traits>
 #  include <unordered_map>
 #else
