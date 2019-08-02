@@ -31,7 +31,7 @@ add_executable(
   main
   ${SRCS})
 
-include_directories(..)
+include_directories(../include/)
 
 
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "i686.*|i386.*|x86.*")
